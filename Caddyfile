@@ -1,0 +1,4 @@
+# TLS certificate from Let's Encrypt for SERVICE_DOMAIN, traffic passed to the service.
+{$SERVICE_DOMAIN} {
+	reverse_proxy app:3000
+}

@@ -1,0 +1,141 @@
+name: Release
+
+# Every merge to main that calls for a new version (feat, fix, perf or a breaking change since the last tag vX.Y.Z)
+# ends in a release without a manual step (RELEASING.md). Same flow as ShipScope:
+#   1. prepare: `node scripts/release.ts --ci` computes the version from Conventional Commits, sets it in
+#      package.json and package-lock.json and adds the CHANGELOG.md entry; the job commits "chore(release): X.Y.Z".
+#      A version already set by hand (a merged "chore(release)" PR, or the first 0.1.0) is released as is.
+#   2. verify: types and tests (with Postgres) on that exact commit; the only test run on main.
+#   3. publish: the annotated tag vX.Y.Z on that commit, only if verify passed, and a GitHub Release.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  prepare:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    outputs:
+      version: ${{ steps.read.outputs.version }}
+      new: ${{ steps.read.outputs.new }}
+      sha: ${{ steps.read.outputs.sha }}
+      skip: ${{ steps.bump.outputs.skip }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+      - name: Bump the version from the commits since the last tag
+        id: bump
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version=$(node -p "require('./package.json').version")
+          if ! git rev-parse -q --verify "refs/tags/v$version" > /dev/null; then
+            echo "package.json has $version without a tag — releasing it as is"
+            exit 0
+          fi
+          node scripts/release.ts --ci
+          [ -z "$(git status --porcelain)" ] && exit 0
+          version=$(node -p "require('./package.json').version")
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -qam "chore(release): $version"
+          # A push with GITHUB_TOKEN starts no new workflow run, so this commit does not release itself again.
+          if ! git push "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "HEAD:refs/heads/main"; then
+            echo "::warning::main moved on during the release; the next run on main releases these commits"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          fi
+      - id: read
+        run: |
+          version=$(node -p "require('./package.json').version")
+          node -e "process.exit(/^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/.test(process.argv[1]) ? 0 : 1)" "$version" \
+            || { echo "::error::package.json version '$version' is not X.Y.Z"; exit 1; }
+          if git rev-parse -q --verify "refs/tags/v$version" > /dev/null; then new=false; else new=true; fi
+          if [ "$new" = true ]; then node scripts/release-notes.ts "$version" > /dev/null; fi
+          {
+            echo "version=$version"
+            echo "new=$new"
+            echo "sha=$(git rev-parse HEAD)"
+          } >> "$GITHUB_OUTPUT"
+
+  verify:
+    needs: prepare
+    if: needs.prepare.outputs.skip != 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.prepare.outputs.sha }}
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+        env:
+          TEST_DATABASE_URL: postgres://postgres:postgres@localhost:5432/postgres
+
+  publish:
+    needs: [prepare, verify]
+    if: needs.verify.result == 'success' && (needs.prepare.outputs.new == 'true' || github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.prepare.outputs.sha }}
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+      - name: Create tag v${{ needs.prepare.outputs.version }}
+        if: needs.prepare.outputs.new == 'true'
+        env:
+          VERSION: ${{ needs.prepare.outputs.version }}
+          SHA: ${{ needs.prepare.outputs.sha }}
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git tag -a "v$VERSION" -m "Release $VERSION" "$SHA"
+          git push origin "refs/tags/v$VERSION"
+      - name: Create GitHub Release v${{ needs.prepare.outputs.version }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.prepare.outputs.version }}
+        run: |
+          if gh release view "v$VERSION" > /dev/null 2>&1; then echo "Release v$VERSION already exists"; exit 0; fi
+          if ! git ls-remote --exit-code --tags origin "refs/tags/v$VERSION" > /dev/null; then echo "No tag v$VERSION"; exit 0; fi
+          node scripts/release-notes.ts "$VERSION" > notes.md
+          gh release create "v$VERSION" --verify-tag --title "v$VERSION" --notes-file notes.md
