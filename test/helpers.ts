@@ -20,6 +20,7 @@ export function token(claims: Record<string, unknown> = {}, header: Record<strin
     iss: ISSUER,
     aud: [AUDIENCE, 'account'],
     sub: '5b0c2f9e-1f7a-4c1e-9f55-6d1a2b3c4d5e',
+    azp: AUDIENCE,
     name: 'Ola Nowak',
     iat: now,
     exp: now + 300,
@@ -30,6 +31,20 @@ export function token(claims: Record<string, unknown> = {}, header: Record<strin
   const sig = rsaSign('sha256', Buffer.from(`${head}.${body}`), privateKey).toString('base64url');
   return `${head}.${body}.${sig}`;
 }
+
+/** An agent token as Keycloak issues it for a service account (checked against Keycloak 26.4 on 2026-11-23). */
+export const agentToken = (claims: Record<string, unknown> = {}) =>
+  token({
+    sub: '16eda11b-ba24-4683-9a20-84f41bf80056',
+    azp: 'agent-tomasz-acme',
+    name: undefined,
+    preferred_username: 'service-account-agent-tomasz-acme',
+    kind: 'agent',
+    owner: '5b0c2f9e-1f7a-4c1e-9f55-6d1a2b3c4d5e',
+    client_id: 'agent-tomasz-acme',
+    resource_access: { [AUDIENCE]: { roles: ['viewer'] } },
+    ...claims,
+  });
 
 export const event = (over: Record<string, unknown> = {}) => ({
   id: 'evt-1',

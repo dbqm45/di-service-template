@@ -1,11 +1,11 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { buildApp, requireIdentity, requireRole } from '../src/app.ts';
+import { buildApp, requireHuman, requireIdentity, requireRole } from '../src/app.ts';
 import { createVerifier } from '../src/auth/oidc.ts';
 import { loadVocabulary } from '../src/events/envelope.ts';
 import { sign } from '../src/events/signature.ts';
 import { memoryEventStore } from '../src/events/store.ts';
-import { AUDIENCE, ISSUER, JWKS, SECRET, event, token } from './helpers.ts';
+import { AUDIENCE, ISSUER, JWKS, SECRET, agentToken, event, token } from './helpers.ts';
 
 const setup = (over: { database?: () => Promise<void> } = {}) => {
   const events = memoryEventStore();
@@ -56,6 +56,15 @@ test('requireRole lets in only the named roles', async () => {
   const auth = { authorization: `Bearer ${token()}` };
   assert.equal((await app.inject({ url: '/api/admin', headers: auth })).statusCode, 403);
   assert.equal((await app.inject({ url: '/api/edit', headers: auth })).statusCode, 200);
+});
+
+test('requireHuman refuses an agent whatever its roles', async () => {
+  const { app, verifier } = setup();
+  app.post('/api/approve', { preHandler: [requireIdentity(verifier), requireHuman()] }, async () => ({ ok: true }));
+  const asAgent = await app.inject({ method: 'POST', url: '/api/approve', headers: { authorization: `Bearer ${agentToken({ resource_access: { [AUDIENCE]: { roles: ['admin'] } } })}` } });
+  assert.equal(asAgent.statusCode, 403);
+  const asPerson = await app.inject({ method: 'POST', url: '/api/approve', headers: { authorization: `Bearer ${token()}` } });
+  assert.equal(asPerson.statusCode, 200);
 });
 
 test('POST /api/events stores a signed contract event once', async () => {

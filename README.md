@@ -12,8 +12,8 @@ Hetzner Cloud z Docker Compose i Caddy (TLS).
 
 | Część | Pliki | Co daje |
 |---|---|---|
-| Logowanie suity | `src/auth/oidc.ts` | weryfikacja tokenu z usługi tożsamości suity (Keycloak, ADR 17): RS256, klucze z JWKS przez OpenID discovery, `iss`, `aud`, `exp`; tożsamość: `sub`, nazwa, organizacje, role tej aplikacji, e-mail tylko gdy token go niesie (DI3) |
-| Ochrona tras | `src/app.ts`: `requireIdentity`, `requireRole` | trasa tylko dla zalogowanych albo tylko dla ról tej aplikacji |
+| Logowanie suity | `src/auth/oidc.ts` | weryfikacja tokenu z usługi tożsamości suity (Keycloak, ADR 17): RS256, klucze z JWKS przez OpenID discovery, `iss`, `aud`, `exp`; tożsamość: `sub`, rodzaj (osoba albo agent z właścicielem, DI4), nazwa, organizacje, role tej aplikacji, e-mail tylko gdy token go niesie (DI3); token osoby tylko wtedy, gdy wydano go tej aplikacji (`azp`), bo Keycloak dopisuje do `aud` każdą aplikację, w której osoba ma role |
+| Ochrona tras | `src/app.ts`: `requireIdentity`, `requireRole`, `requireHuman` | trasa tylko dla zalogowanych, tylko dla ról tej aplikacji albo tylko dla człowieka (zatwierdzanie bramek i decyzji, DI4) |
 | Zdarzenia suity | `src/events/` | odbiór `POST /api/events` z podpisem `X-DI-Signature` (ten sam schemat co pdi, ShipScope i DI Channels), sprawdzenie koperty wg przypiętego kontraktu, zapis z deduplikacją po `id`; wysyłka `sendEvent` |
 | Baza | `src/db/`, `migrations/` | pula połączeń, migracje SQL `NNN_opis.sql` w transakcjach pod blokadą (wzorzec ShipScope) |
 | Kontrakt | `contract/`, `tools/contract-pin.json`, `tools/sync-contract.ts` | przypięta kopia `dbqm45/di-contract` (dziś 0.16.0), sprawdzana bajt w bajt w CI |

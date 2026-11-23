@@ -14,7 +14,12 @@ await runMigrations(pool);
 
 const app = buildApp({
   version,
-  verifier: createVerifier({ issuer: config.oidcIssuer, audience: config.oidcAudience, fetchJwks: discoveryJwks(config.oidcIssuer) }),
+  verifier: createVerifier({
+    issuer: config.oidcIssuer,
+    audience: config.oidcAudience,
+    authorizedParties: config.oidcAuthorizedParties,
+    fetchJwks: discoveryJwks(config.oidcIssuer),
+  }),
   eventsSecret: config.eventsSecret,
   vocabulary: loadVocabulary(),
   events: postgresEventStore(pool),

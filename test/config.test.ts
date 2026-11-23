@@ -15,6 +15,8 @@ test('reads the configuration and trims the issuer', () => {
   assert.equal(c.port, 3000);
   assert.equal(c.host, '127.0.0.1');
   assert.equal(c.databaseSsl, true);
+  assert.deepEqual(c.oidcAuthorizedParties, []);
+  assert.deepEqual(loadConfig({ ...env, OIDC_AUTHORIZED_PARTIES: 'a, b' }).oidcAuthorizedParties, ['a', 'b']);
 });
 
 test('names the variable that is missing or wrong', () => {
