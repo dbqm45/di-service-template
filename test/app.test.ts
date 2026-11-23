@@ -1,15 +1,15 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { buildApp, requireHuman, requireIdentity, requireRole } from '../src/app.ts';
+import { buildApp, requireHuman, requireIdentity, requireRole, requireService } from '../src/app.ts';
 import { createVerifier } from '../src/auth/oidc.ts';
 import { loadVocabulary } from '../src/events/envelope.ts';
 import { sign } from '../src/events/signature.ts';
 import { memoryEventStore } from '../src/events/store.ts';
-import { AUDIENCE, ISSUER, JWKS, SECRET, agentToken, event, token } from './helpers.ts';
+import { AUDIENCE, ISSUER, JWKS, SECRET, agentToken, event, serviceToken, token } from './helpers.ts';
 
 const setup = (over: { database?: () => Promise<void> } = {}) => {
   const events = memoryEventStore();
-  const verifier = createVerifier({ issuer: ISSUER, audience: AUDIENCE, fetchJwks: async () => JWKS });
+  const verifier = createVerifier({ issuer: ISSUER, audience: AUDIENCE, serviceClients: ['di-channels'], fetchJwks: async () => JWKS });
   const app = buildApp({
     version: '1.2.3',
     verifier,
@@ -65,6 +65,14 @@ test('requireHuman refuses an agent whatever its roles', async () => {
   assert.equal(asAgent.statusCode, 403);
   const asPerson = await app.inject({ method: 'POST', url: '/api/approve', headers: { authorization: `Bearer ${token()}` } });
   assert.equal(asPerson.statusCode, 200);
+});
+
+test('requireService lets in only service accounts of suite applications', async () => {
+  const { app, verifier } = setup();
+  app.get('/api/internal', { preHandler: [requireIdentity(verifier), requireService()] }, async () => ({ ok: true }));
+  assert.equal((await app.inject({ url: '/api/internal', headers: { authorization: `Bearer ${serviceToken()}` } })).statusCode, 200);
+  assert.equal((await app.inject({ url: '/api/internal', headers: { authorization: `Bearer ${token()}` } })).statusCode, 403);
+  assert.equal((await app.inject({ url: '/api/internal', headers: { authorization: `Bearer ${agentToken()}` } })).statusCode, 403);
 });
 
 test('POST /api/events stores a signed contract event once', async () => {

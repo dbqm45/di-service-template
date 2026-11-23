@@ -16,6 +16,7 @@ test('reads the configuration and trims the issuer', () => {
   assert.equal(c.host, '127.0.0.1');
   assert.equal(c.databaseSsl, true);
   assert.deepEqual(c.oidcAuthorizedParties, []);
+  assert.deepEqual(loadConfig({ ...env, OIDC_SERVICE_CLIENTS: 'di-channels' }).oidcServiceClients, ['di-channels']);
   assert.deepEqual(loadConfig({ ...env, OIDC_AUTHORIZED_PARTIES: 'a, b' }).oidcAuthorizedParties, ['a', 'b']);
 });
 
