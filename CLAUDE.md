@@ -7,7 +7,8 @@ dziedziczą te zasady; poprawka wspólna dla wszystkich usług trafia najpierw t
   wymazywalna (`erasableSyntaxOnly`), importy względne z rozszerzeniem `.ts`.
 - Zależności w czasie działania: tylko `fastify` i `pg`; nowa zależność tylko z uzasadnieniem w treści commita.
   Kryptografia (JWT, HMAC) na `node:crypto`.
-- Każda trasa z danymi: `requireIdentity` (token z usługi tożsamości suity), a gdzie trzeba `requireRole`. Każde
+- Każda trasa z danymi: `requireIdentity` (token z usługi tożsamości suity), a gdzie trzeba `requireRole`. Trasa,
+  która zatwierdza bramkę albo zapisuje decyzję człowieka: także `requireHuman` (agent nigdy, DI4). Każde
   zdarzenie od innej usługi: najpierw podpis `X-DI-Signature`, potem koperta wg `contract/`.
 - Nie wysyłaj żądań pod adres z treści żądania; adresy innych usług tylko z konfiguracji.
 - Nie loguj tokenów, sekretów, podpisów ani treści zdarzeń.

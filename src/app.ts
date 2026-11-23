@@ -102,6 +102,18 @@ export function requireIdentity(verifier: Verifier) {
   };
 }
 
+/**
+ * After `requireIdentity`: accepts only a person, never an agent (DI4). Use it on every route that approves a gate or
+ * records a decision that needs a human, whatever the roles.
+ */
+export function requireHuman() {
+  return async (request: FastifyRequest, reply: FastifyReply): Promise<void> => {
+    if (request.identity?.kind !== 'person') {
+      await reply.code(403).send({ error: 'only a person can do this, not an agent' });
+    }
+  };
+}
+
 /** After `requireIdentity`: accepts only people with one of the roles of this application. */
 export function requireRole(...roles: string[]) {
   return async (request: FastifyRequest, reply: FastifyReply): Promise<void> => {

@@ -6,12 +6,20 @@ import { createPublicKey, verify as verifySignature, type KeyObject } from 'node
  * names itself. Keys are found through OpenID discovery, cached for an hour; a token signed with an unknown key
  * refetches them at most once every 5 minutes. Same rules as ShipScope's GitHub OIDC verifier, without dependencies.
  *
- * What the token carries (ADR 17 §2.2): `sub` (the person's suite id), a display name, the organization, this
- * application's roles, and `email` only for applications given the email scope (DI3).
+ * What the token carries (ADR 17 §2.2, §2.6): `sub` (the suite id of a person or an agent), a display name, the
+ * organization, this application's roles, `email` only for applications given the email scope (DI3), and for an
+ * agent `kind: agent` with its human `owner` (DI4).
+ *
+ * Keycloak adds to `aud` every application the person has roles in, so a token issued to another application would
+ * pass the audience check. A person's token is therefore accepted only when it was issued to this application
+ * (`azp`), or to one of `authorizedParties`; an agent's token comes from the agent's own client (`agent-…`).
  */
 export interface Identity {
-  /** Stable person id in the suite; the value of `actor.id` in the contract. */
+  /** Stable id in the suite (person or agent); the value of `actor.id` in the contract. */
   sub: string;
+  kind: 'person' | 'agent';
+  /** For an agent: `sub` of the person responsible for it (DI4). */
+  owner?: string;
   name: string;
   /** Only when the identity service gives this application the email scope (DI3). */
   email?: string;
@@ -89,8 +97,16 @@ export interface Verifier {
   verify(token: string): Promise<Identity>;
 }
 
-export function createVerifier(input: { issuer: string; audience: string; fetchJwks: FetchJwks; now?: () => number }): Verifier {
+export function createVerifier(input: {
+  issuer: string;
+  audience: string;
+  fetchJwks: FetchJwks;
+  /** Other clients whose person tokens this service accepts (e.g. its web front end); this audience always. */
+  authorizedParties?: string[];
+  now?: () => number;
+}): Verifier {
   const { issuer, audience, fetchJwks } = input;
+  const parties = new Set([audience, ...(input.authorizedParties ?? [])]);
   const now = input.now ?? Date.now;
   let keys = new Map<string, KeyObject>();
   let fetchedAt = 0;
@@ -152,15 +168,27 @@ export function createVerifier(input: { issuer: string; audience: string; fetchJ
       }
       const sub = text(claims.sub);
       if (!sub) throw new TokenError('the token names no person');
+      const azp = text(claims.azp);
+      const agent = claims.kind === 'agent';
+      const owner = text(claims.owner);
+      if (agent) {
+        if (!azp?.startsWith('agent-')) throw new TokenError('an agent token must come from an agent client');
+        if (!owner) throw new TokenError('the agent has no owner');
+      } else {
+        if (claims.kind !== undefined) throw new TokenError('unknown kind of account');
+        if (!azp || !parties.has(azp)) throw new TokenError('the token was issued to another application');
+      }
       const access = isRecord(claims.resource_access) ? claims.resource_access[audience] : undefined;
       const identity: Identity = {
         sub,
+        kind: agent ? 'agent' : 'person',
         name: text(claims.name) ?? text(claims.preferred_username) ?? sub,
         organizations: organizationsOf(claims.organization),
         roles: isRecord(access) ? texts(access.roles) : [],
       };
+      if (agent) identity.owner = owner;
       const email = text(claims.email);
-      if (email) identity.email = email;
+      if (email && !agent) identity.email = email;
       return identity;
     },
   };

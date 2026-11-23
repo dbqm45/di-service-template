@@ -12,6 +12,8 @@ export interface Config {
   oidcIssuer: string;
   /** This service's client id in the identity service; tokens must name it in `aud`. */
   oidcAudience: string;
+  /** Other clients whose person tokens are accepted (OIDC_AUTHORIZED_PARTIES, comma-separated). */
+  oidcAuthorizedParties: string[];
   /** Shared secret for signed events between suite services (X-DI-Signature). */
   eventsSecret: string;
   /** Version reported by GET /health. */
@@ -42,6 +44,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env, version = '0.0.
     databaseSsl: env.DATABASE_SSL !== 'false',
     oidcIssuer: issuer,
     oidcAudience: required(env, 'OIDC_AUDIENCE'),
+    oidcAuthorizedParties: (env.OIDC_AUTHORIZED_PARTIES ?? '').split(',').map((p) => p.trim()).filter(Boolean),
     eventsSecret,
     version,
   };
