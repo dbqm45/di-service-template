@@ -114,6 +114,15 @@ export function requireHuman() {
   };
 }
 
+/** After `requireIdentity`: accepts only another suite application's service account (ADR 17 §2.4). */
+export function requireService() {
+  return async (request: FastifyRequest, reply: FastifyReply): Promise<void> => {
+    if (request.identity?.kind !== 'service') {
+      await reply.code(403).send({ error: 'only a suite application can call this' });
+    }
+  };
+}
+
 /** After `requireIdentity`: accepts only people with one of the roles of this application. */
 export function requireRole(...roles: string[]) {
   return async (request: FastifyRequest, reply: FastifyReply): Promise<void> => {

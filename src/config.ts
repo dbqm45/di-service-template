@@ -14,6 +14,8 @@ export interface Config {
   oidcAudience: string;
   /** Other clients whose person tokens are accepted (OIDC_AUTHORIZED_PARTIES, comma-separated). */
   oidcAuthorizedParties: string[];
+  /** Suite applications whose service accounts may call this service (OIDC_SERVICE_CLIENTS, comma-separated). */
+  oidcServiceClients: string[];
   /** Shared secret for signed events between suite services (X-DI-Signature). */
   eventsSecret: string;
   /** Version reported by GET /health. */
@@ -45,6 +47,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env, version = '0.0.
     oidcIssuer: issuer,
     oidcAudience: required(env, 'OIDC_AUDIENCE'),
     oidcAuthorizedParties: (env.OIDC_AUTHORIZED_PARTIES ?? '').split(',').map((p) => p.trim()).filter(Boolean),
+    oidcServiceClients: (env.OIDC_SERVICE_CLIENTS ?? '').split(',').map((p) => p.trim()).filter(Boolean),
     eventsSecret,
     version,
   };

@@ -8,7 +8,8 @@ import { createPublicKey, verify as verifySignature, type KeyObject } from 'node
  *
  * What the token carries (ADR 17 §2.2, §2.6): `sub` (the suite id of a person or an agent), a display name, the
  * organization, this application's roles, `email` only for applications given the email scope (DI3), and for an
- * agent `kind: agent` with its human `owner` (DI4).
+ * agent `kind: agent` with its human `owner` (DI4). A third kind is a **service**: the service account of another suite
+ * application calling this one (client credentials, ADR 17 §2.4), accepted only from clients in `serviceClients`.
  *
  * Keycloak adds to `aud` every application the person has roles in, so a token issued to another application would
  * pass the audience check. A person's token is therefore accepted only when it was issued to this application
@@ -17,7 +18,7 @@ import { createPublicKey, verify as verifySignature, type KeyObject } from 'node
 export interface Identity {
   /** Stable id in the suite (person or agent); the value of `actor.id` in the contract. */
   sub: string;
-  kind: 'person' | 'agent';
+  kind: 'person' | 'agent' | 'service';
   /** For an agent: `sub` of the person responsible for it (DI4). */
   owner?: string;
   name: string;
@@ -103,10 +104,13 @@ export function createVerifier(input: {
   fetchJwks: FetchJwks;
   /** Other clients whose person tokens this service accepts (e.g. its web front end); this audience always. */
   authorizedParties?: string[];
+  /** Suite applications whose service accounts may call this service (client ids, e.g. di-channels). */
+  serviceClients?: string[];
   now?: () => number;
 }): Verifier {
   const { issuer, audience, fetchJwks } = input;
   const parties = new Set([audience, ...(input.authorizedParties ?? [])]);
+  const services = new Set(input.serviceClients ?? []);
   const now = input.now ?? Date.now;
   let keys = new Map<string, KeyObject>();
   let fetchedAt = 0;
@@ -171,9 +175,13 @@ export function createVerifier(input: {
       const azp = text(claims.azp);
       const agent = claims.kind === 'agent';
       const owner = text(claims.owner);
+      // Keycloak marks a service account token with client_id (= azp) and the user name service-account-<client>.
+      const service = !agent && claims.kind === undefined && text(claims.client_id) === azp && text(claims.preferred_username) === `service-account-${azp}`;
       if (agent) {
         if (!azp?.startsWith('agent-')) throw new TokenError('an agent token must come from an agent client');
         if (!owner) throw new TokenError('the agent has no owner');
+      } else if (service) {
+        if (!azp || !services.has(azp)) throw new TokenError('this application may not call this service');
       } else {
         if (claims.kind !== undefined) throw new TokenError('unknown kind of account');
         if (!azp || !parties.has(azp)) throw new TokenError('the token was issued to another application');
@@ -181,14 +189,14 @@ export function createVerifier(input: {
       const access = isRecord(claims.resource_access) ? claims.resource_access[audience] : undefined;
       const identity: Identity = {
         sub,
-        kind: agent ? 'agent' : 'person',
-        name: text(claims.name) ?? text(claims.preferred_username) ?? sub,
+        kind: agent ? 'agent' : service ? 'service' : 'person',
+        name: service ? (azp ?? sub) : (text(claims.name) ?? text(claims.preferred_username) ?? sub),
         organizations: organizationsOf(claims.organization),
         roles: isRecord(access) ? texts(access.roles) : [],
       };
       if (agent) identity.owner = owner;
       const email = text(claims.email);
-      if (email && !agent) identity.email = email;
+      if (email && !agent && !service) identity.email = email;
       return identity;
     },
   };

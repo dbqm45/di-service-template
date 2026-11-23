@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { TokenError, bearer, createVerifier, discoveryJwks } from '../src/auth/oidc.ts';
-import { AUDIENCE, ISSUER, JWKS, agentToken, token } from './helpers.ts';
+import { AUDIENCE, ISSUER, JWKS, agentToken, serviceToken, token } from './helpers.ts';
 
 const verifier = (over: Partial<Parameters<typeof createVerifier>[0]> = {}) =>
   createVerifier({ issuer: ISSUER, audience: AUDIENCE, fetchJwks: async () => JWKS, ...over });
@@ -97,4 +97,16 @@ test('agent tokens must come from an agent client and name an owner', async () =
   await rejects(agentToken({ azp: 'di-decision' }), /agent client/);
   await rejects(agentToken({ owner: undefined }), /no owner/);
   await rejects(token({ kind: 'robot' }), /unknown kind/);
+});
+
+test('a service token of an allowed suite application gives kind service (ADR 17 §2.4)', async () => {
+  const id = await verifier({ serviceClients: ['di-channels'] }).verify(serviceToken());
+  assert.deepEqual(id, { sub: '0b1c2d3e-4f50-6172-8394-a5b6c7d8e9f0', kind: 'service', name: 'di-channels', organizations: [], roles: ['people-reader'] });
+});
+
+test('service tokens of applications not listed are refused; a look-alike is not a service', async () => {
+  await rejects(serviceToken(), /may not call this service/);
+  await rejects(serviceToken('di-release'), /may not call this service/, verifier({ serviceClients: ['di-channels'] }));
+  // client_id without the service-account user name is treated as a person token issued to another app.
+  await rejects(token({ azp: 'di-channels', client_id: 'di-channels' }), /issued to another application/, verifier({ serviceClients: ['di-channels'] }));
 });

@@ -46,6 +46,20 @@ export const agentToken = (claims: Record<string, unknown> = {}) =>
     ...claims,
   });
 
+/** A service account token of another suite application, as Keycloak 26.4 issues it (client credentials). */
+export const serviceToken = (client = 'di-channels', claims: Record<string, unknown> = {}) =>
+  token({
+    sub: '0b1c2d3e-4f50-6172-8394-a5b6c7d8e9f0',
+    azp: client,
+    client_id: client,
+    preferred_username: `service-account-${client}`,
+    name: undefined,
+    email: undefined,
+    organization: undefined,
+    resource_access: { [AUDIENCE]: { roles: ['people-reader'] } },
+    ...claims,
+  });
+
 export const event = (over: Record<string, unknown> = {}) => ({
   id: 'evt-1',
   type: 'gate.decided',

@@ -18,6 +18,7 @@ const app = buildApp({
     issuer: config.oidcIssuer,
     audience: config.oidcAudience,
     authorizedParties: config.oidcAuthorizedParties,
+    serviceClients: config.oidcServiceClients,
     fetchJwks: discoveryJwks(config.oidcIssuer),
   }),
   eventsSecret: config.eventsSecret,
