@@ -1,6 +1,6 @@
 {
   "name": "di-service-template",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "description": "Template for a Delivery Intelligence Suite service: Fastify + Postgres in TypeScript, suite sign-in, signed events, pinned contract",
   "type": "module",
