@@ -1,0 +1,61 @@
+name: CI
+
+# On every PR: the title (PRs are squash-merged, so it becomes the commit on main and drives the version,
+# RELEASING.md), types, tests against a real Postgres, the pinned contract copy and the image build. A title edit
+# re-checks only the title. Pushes to main are tested by the Release workflow.
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}-${{ github.event.action == 'edited' && 'title' || 'code' }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    if: github.event.action != 'edited' || github.event.changes.title
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+          cache: npm
+      # The title goes through an environment variable, never into the script text.
+      - name: Conventional Commits PR title
+        run: node scripts/check-commit-message.ts "$TITLE"
+        env:
+          TITLE: ${{ github.event.pull_request.title }}
+      - if: github.event.action != 'edited'
+        run: npm ci
+      - if: github.event.action != 'edited'
+        run: npm run typecheck
+      - name: Tests (with Postgres)
+        if: github.event.action != 'edited'
+        run: npm test
+        env:
+          TEST_DATABASE_URL: postgres://postgres:postgres@localhost:5432/postgres
+      - name: contract/ is the pinned copy of dbqm45/di-contract
+        if: github.event.action != 'edited'
+        run: npm run contract:check
+      - name: Image builds
+        if: github.event.action != 'edited'
+        run: docker build -q -t service:ci .

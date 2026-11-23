@@ -1,0 +1,46 @@
+# One host (Hetzner Cloud VM, DA4): the service, its Postgres and Caddy for TLS. Secrets come from .env next to
+# this file (never committed). Start: docker compose up -d --build. See README.md, "Wdrożenie".
+services:
+  app:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATABASE_URL: postgres://app:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@db:5432/app
+      DATABASE_SSL: "false"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: app
+      POSTGRES_DB: app
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+    volumes:
+      - db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U app"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      SERVICE_DOMAIN: ${SERVICE_DOMAIN:?set SERVICE_DOMAIN in .env}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy:/data
+    depends_on:
+      - app
+
+volumes:
+  db:
+  caddy:

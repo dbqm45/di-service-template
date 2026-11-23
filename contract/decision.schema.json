@@ -1,0 +1,470 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/dbqm45/pdi/contract/decision.schema.json",
+  "title": "Decyzja (kontrakt suity 0.16.0)",
+  "description": "Jedna decyzja w rejestrze pdi albo w nagłówku wpisu changes/CHG-n/decisions.md. Pola: docs/14-pdi-standalone.md §4.1.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "id",
+    "statement",
+    "why",
+    "decided_at",
+    "decided_by",
+    "kind",
+    "source",
+    "status",
+    "drafted_by"
+  ],
+  "properties": {
+    "record": {
+      "const": "decision",
+      "description": "Znacznik formatu Decision Record (DR1): plik .md z tym polem w nagłówku YAML jest decyzją zgodną z tym schematem."
+    },
+    "schema": {
+      "type": "string",
+      "pattern": "^https://",
+      "description": "Adres schematu decyzji, wg którego zapisano plik (DR1)."
+    },
+    "contract_version": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$",
+      "description": "Wersja kontraktu, wg której zapisano plik (DR1)."
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[A-Z][A-Z0-9]+-[0-9]+$",
+      "description": "Nadawane przez rejestr."
+    },
+    "statement": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Co zdecydowano, jedno zdanie."
+    },
+    "why": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Uzasadnienie, 1–5 zdań."
+    },
+    "decided_at": {
+      "type": "string",
+      "format": "date",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+    },
+    "decided_by": {
+      "type": "string",
+      "minLength": 1
+    },
+    "recorded_at": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$",
+      "description": "Moment zapisu w rejestrze (UTC), nadawany przez rejestr."
+    },
+    "kind": {
+      "type": "string",
+      "enum": [
+        "product",
+        "technical",
+        "process",
+        "triage",
+        "intent",
+        "gate",
+        "other"
+      ]
+    },
+    "decision_type": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)*$",
+      "description": "Stały klucz typu decyzji dla poziomów autonomii, np. flag.stage_advance; katalog w contract.json → autonomy."
+    },
+    "project": {
+      "type": "string",
+      "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+      "description": "Projekt, którego dotyczy decyzja (np. nazwa repo); wyznacza katalog decisions/<project>/. Brak = decyzja ogólna."
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "claude-cli",
+            "claude-ai",
+            "slack",
+            "confluence",
+            "jira",
+            "manual",
+            "console",
+            "ci_for_sdlc",
+            "meeting"
+          ]
+        },
+        "url": {
+          "type": "string",
+          "minLength": 1
+        },
+        "excerpt": {
+          "type": "string"
+        }
+      }
+    },
+    "origin": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Pochodzenie decyzji podjętej w innej aplikacji suity (D1, od 0.16.0): kto jest jej właścicielem i gdzie leży oryginał. Klucz idempotencji: app + scope + local_id. Brak pola = decyzja podjęta w DI Decision (pdi).",
+      "required": [
+        "app",
+        "scope",
+        "local_id"
+      ],
+      "properties": {
+        "app": {
+          "type": "string",
+          "enum": [
+            "pdi",
+            "tf",
+            "ci_for_sdlc",
+            "shipscope"
+          ],
+          "description": "Aplikacja-właściciel decyzji; te same wartości co source zdarzenia."
+        },
+        "scope": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200,
+          "description": "Gdzie local_id jest jednoznaczny: repo (owner/name), przestrzeń DI Definition, projekt."
+        },
+        "local_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200,
+          "description": "Identyfikator decyzji u właściciela, np. D-012, CHG-12/D1, PAY-12/COV-001."
+        },
+        "path": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Plik z decyzją w repo właściciela, np. docs/project/decisions.md."
+        },
+        "commit": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{7,40}$",
+          "description": "Commit, w którym zapisano tę wersję decyzji."
+        },
+        "url": {
+          "type": "string",
+          "pattern": "^https://",
+          "description": "Strona decyzji u właściciela."
+        }
+      }
+    },
+    "options": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "option",
+          "chosen"
+        ],
+        "properties": {
+          "option": {
+            "type": "string",
+            "minLength": 1
+          },
+          "chosen": {
+            "type": "boolean"
+          },
+          "note": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "evidence": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "text",
+          "epistemic_status"
+        ],
+        "properties": {
+          "text": {
+            "type": "string",
+            "minLength": 1
+          },
+          "source_url": {
+            "type": "string"
+          },
+          "epistemic_status": {
+            "type": "string",
+            "enum": [
+              "observation",
+              "interpretation",
+              "hypothesis",
+              "ai_inference"
+            ]
+          }
+        }
+      }
+    },
+    "assumptions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "statement",
+          "load_bearing",
+          "invalidated_if"
+        ],
+        "properties": {
+          "statement": {
+            "type": "string",
+            "minLength": 1
+          },
+          "load_bearing": {
+            "type": "boolean"
+          },
+          "invalidated_if": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    "dependencies": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "answers": {
+      "type": "array",
+      "description": "Odpowiedzi człowieka na pytania z sekcji „Pytania do bramki” artefaktu, o który prosiła bramka (od 0.11.0, Z1). Pytanie dosłownie z gate.requested.payload.questions.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "question",
+          "answer"
+        ],
+        "properties": {
+          "question": {
+            "type": "string",
+            "minLength": 1
+          },
+          "answer": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    "success_metric": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "metric",
+        "target"
+      ],
+      "properties": {
+        "metric": {
+          "type": "string",
+          "minLength": 1
+        },
+        "target": {
+          "type": "string",
+          "minLength": 1
+        },
+        "horizon": {
+          "type": "string"
+        }
+      }
+    },
+    "review_by": {
+      "type": "string",
+      "format": "date",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "recorded",
+        "superseded",
+        "reverted"
+      ]
+    },
+    "supersedes": {
+      "type": "string",
+      "pattern": "^[A-Z][A-Z0-9]+-[0-9]+$"
+    },
+    "superseded_by": {
+      "type": "string",
+      "pattern": "^[A-Z][A-Z0-9]+-[0-9]+$"
+    },
+    "links": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "prb": {
+          "type": "string"
+        },
+        "chg": {
+          "type": "string"
+        },
+        "tsk": {
+          "type": "string"
+        },
+        "pr": {
+          "type": "string"
+        },
+        "adr": {
+          "type": "string"
+        }
+      }
+    },
+    "tags": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "drafted_by": {
+      "type": "string",
+      "enum": [
+        "ai",
+        "human"
+      ]
+    },
+    "automation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "level"
+      ],
+      "description": "Decyzja podjęta przez automat (poziom 0–2). Decyzja człowieka (poziom 3) nie ma tego pola.",
+      "properties": {
+        "level": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 2
+        },
+        "rule": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Warunek, który spełnił automat."
+        },
+        "veto_until": {
+          "type": "string",
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"
+        },
+        "vetoed_by": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "level": {
+                "const": 2
+              }
+            },
+            "required": [
+              "level"
+            ]
+          },
+          "then": {
+            "required": [
+              "veto_until"
+            ]
+          }
+        }
+      ]
+    },
+    "draft_edited": {
+      "type": "boolean",
+      "description": "Czy człowiek zmienił szkic AI przed zatwierdzeniem (podstawa odsetka akceptacji, DA2)."
+    },
+    "consequences": {
+      "type": "array",
+      "description": "Skutki decyzji (DR4, MADR „Consequences”).",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "text",
+          "effect"
+        ],
+        "properties": {
+          "text": {
+            "type": "string",
+            "minLength": 1
+          },
+          "effect": {
+            "type": "string",
+            "enum": [
+              "good",
+              "bad",
+              "neutral"
+            ]
+          }
+        }
+      }
+    },
+    "confirmation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "how"
+      ],
+      "description": "Jak sprawdzić, że decyzję wykonano (DR4, MADR „Confirmation”; obejmuje planowane verify).",
+      "properties": {
+        "how": {
+          "type": "string",
+          "minLength": 1
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "test",
+            "ci_check",
+            "review",
+            "metric",
+            "manual"
+          ]
+        },
+        "ref": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Odwołanie: id testu, nazwa kontroli, link."
+        }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "required": [
+          "draft_edited"
+        ]
+      },
+      "then": {
+        "properties": {
+          "drafted_by": {
+            "const": "ai"
+          }
+        }
+      }
+    }
+  ]
+}

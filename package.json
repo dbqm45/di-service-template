@@ -1,0 +1,30 @@
+{
+  "name": "di-service-template",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Template for a Delivery Intelligence Suite service: Fastify + Postgres in TypeScript, suite sign-in, signed events, pinned contract",
+  "type": "module",
+  "engines": {
+    "node": ">=22.18"
+  },
+  "scripts": {
+    "start": "node --env-file-if-exists=.env src/server.ts",
+    "migrate": "node --env-file-if-exists=.env src/db/migrate-cli.ts",
+    "test": "node --test \"test/**/*.test.ts\"",
+    "typecheck": "tsc --noEmit",
+    "lint:commit": "node scripts/check-commit-message.ts",
+    "release": "node scripts/release.ts",
+    "contract:sync": "node tools/sync-contract.ts sync",
+    "contract:check": "node tools/sync-contract.ts check",
+    "hooks:install": "git config core.hooksPath .githooks"
+  },
+  "dependencies": {
+    "fastify": "^5.12.8",
+    "pg": "^8.23.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.19.0",
+    "@types/pg": "^8.15.5",
+    "typescript": "^5.9.3"
+  }
+}
