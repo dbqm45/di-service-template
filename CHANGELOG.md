@@ -2,6 +2,12 @@
 
 Notable changes, newest first. Entries are written by `npm run release` from Conventional Commits (RELEASING.md).
 
+## [0.1.2] - 2026-11-23
+
+### Added
+
+- accept service tokens of listed suite applications (#3)
+
 ## [0.1.1] - 2026-11-23
 
 ### Added
